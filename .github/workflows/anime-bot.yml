@@ -40,24 +40,38 @@ jobs:
         chromedriver --version
 
     - name: إعداد Puppeteer
-      run: |
-        echo "📦 استخدام package.json الموجود"
-        if [ -f package.json ]; then
-          echo "✅ ملف package.json موجود"
-          cat package.json | head -10
-        else
-          echo "❌ ملف package.json غير موجود، سيتم إنشاؤه"
-          npm init -y
-        fi
-        
-        # تثبيت Puppeteer
-        echo "جاري تثبيت Puppeteer..."
-        npm install puppeteer --no-package-lock
-        
-        # تحديد مسار Chrome
-        CHROME_PATH=$(which chromium-browser)
-        export PUPPETEER_EXECUTABLE_PATH=$CHROME_PATH
-        echo "✅ Puppeteer مثبت، مسار Chrome: $CHROME_PATH"
+      - name: إعداد Puppeteer
+  run: |
+    echo "🔧 إنشاء ملف package.json جديد..."
+    
+    # إنشاء package.json صحيح
+    echo '{
+      "name": "whatsapp-anime-bot",
+      "version": "1.0.0",
+      "description": "WhatsApp Bot for Anime Downloader",
+      "main": "index.js",
+      "scripts": {
+        "test": "echo \"No tests specified\""
+      },
+      "keywords": ["whatsapp", "bot", "anime"],
+      "author": "",
+      "license": "MIT",
+      "dependencies": {
+        "puppeteer": "^21.6.0"
+      }
+    }' > package.json
+    
+    echo "✅ ملف package.json تم إنشاؤه بنجاح"
+    cat package.json
+    
+    echo "📦 جاري تثبيت Puppeteer..."
+    npm install puppeteer --no-package-lock
+    
+    # تحديد مسار Chrome
+    CHROME_PATH=$(which chromium-browser)
+    export PUPPETEER_EXECUTABLE_PATH=$CHROME_PATH
+    echo "✅ Puppeteer مثبت بنجاح"
+    echo "📌 مسار Chrome: $CHROME_PATH"
 
     - name: ترقية pip
       run: python -m pip install --upgrade pip
