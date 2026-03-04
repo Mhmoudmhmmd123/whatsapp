@@ -31,14 +31,13 @@ jobs:
           nodejs \
           npm
 
-    - name: تثبيت ChromeDriver
+    - name: إعداد ChromeDriver
       run: |
         sudo ln -sf /usr/lib/chromium-browser/chromedriver /usr/local/bin/chromedriver
         chromedriver --version
 
     - name: إعداد Puppeteer
       run: |
-        # إنشاء package.json جديد
         echo '{"name":"bot","version":"1.0.0"}' > package.json
         npm install puppeteer --no-package-lock
         echo "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser" >> $GITHUB_ENV
@@ -49,7 +48,7 @@ jobs:
     - name: تثبيت مكتبات بايثون
       run: |
         pip install selenium==4.15.2
-        pip install webdriver-manager==4.0.3
+        pip install webdriver-manager==4.0.2
         pip install requests==2.31.0
         pip install beautifulsoup4==4.12.2
         pip install lxml==4.9.3
@@ -66,7 +65,9 @@ jobs:
     - name: إعداد المجلدات
       run: |
         mkdir -p downloads compressed logs database session temp
-        chmod +x start.sh 2>/dev/null || true
+        if [ -f start.sh ]; then
+          chmod +x start.sh
+        fi
 
     - name: تشغيل البوت
       run: xvfb-run -a python run.py
@@ -102,3 +103,15 @@ jobs:
         path: logs/
         retention-days: 7
         if-no-files-found: ignore
+
+    - name: تلخيص التشغيل
+      if: always()
+      run: |
+        echo "===================================="
+        echo "📊 ملخص التشغيل"
+        echo "===================================="
+        echo "✅ الحالة: ${{ job.status }}"
+        echo "🕒 وقت التشغيل: $(date)"
+        echo "📁 الملفات في downloads:"
+        ls -lh downloads/ 2>/dev/null | head -10 || echo "لا توجد ملفات"
+        echo "===================================="
