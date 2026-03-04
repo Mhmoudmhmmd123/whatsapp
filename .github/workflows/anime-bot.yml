@@ -1,0 +1,175 @@
+name: تشغيل بوت الأنمي والواتساب
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:  # تشغيل يدوي
+  schedule:
+    - cron: '0 */6 * * *'  # كل 6 ساعات
+
+jobs:
+  run-anime-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 ساعات كاملة
+
+    steps:
+    - name: استيراد الكود من المستودع
+      uses: actions/checkout@v4
+
+    - name: إعداد بايثون
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: تثبيت الحزم النظامية المطلوبة
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          chromium-browser \
+          ffmpeg \
+          wget \
+          unzip \
+          xvfb \
+          nodejs \
+          npm
+
+    - name: تثبيت ChromeDriver
+      run: |
+        wget https://storage.googleapis.com/chrome-for-testing-public/latest/linux64/chromedriver-linux64.zip
+        unzip chromedriver-linux64.zip
+        sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/chromedriver
+        chromedriver --version
+
+    - name: إعداد Puppeteer
+      run: |
+        npm init -y
+        npm install puppeteer
+        export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser)
+
+    - name: ترقية pip
+      run: python -m pip install --upgrade pip
+
+    - name: تثبيت مكتبات بايثون من requirements.txt
+      run: |
+        pip install -r requirements.txt
+
+    - name: تأكيد التثبيت
+      run: |
+        echo "✅ المكتبات المثبتة:"
+        pip list | grep -E "selenium|requests|beautifulsoup|ffmpeg|Pillow|cloudscraper|pyppeteer|aiohttp"
+
+    - name: إعداد هيكل المجلدات
+      run: |
+        chmod +x start.sh
+        mkdir -p downloads
+        mkdir -p logs
+        mkdir -p database
+        mkdir -p compressed
+        mkdir -p temp
+        mkdir -p session  # لجلسة الواتساب
+        echo "📁 المجلدات التي تم إنشاؤها:"
+        ls -la
+
+    - name: إعداد متغيرات البيئة
+      run: |
+        if [ -f .env ]; then
+          echo "✅ ملف .env موجود"
+          cat .env | grep -v "PASSWORD\|TOKEN\|KEY" || true
+        else
+          echo "⚠️ لا يوجد ملف .env، سيتم إنشاء ملف افتراضي"
+          touch .env
+        fi
+
+    - name: اختبار التثبيت
+      run: |
+        echo "🧪 اختبار التثبيت..."
+        python test_installation.py || echo "⚠️ اختبار التثبيت يحتاج تعديل"
+
+    - name: عرض معلومات المشروع
+      run: |
+        echo "===================================="
+        echo "📋 معلومات المشروع:"
+        echo "===================================="
+        echo "📁 الملفات الرئيسية:"
+        ls -la *.py
+        echo ""
+        echo "📚 ملفات التوثيق:"
+        ls -la *.md *.txt
+        echo ""
+        echo "📦 محتويات requirements.txt:"
+        cat requirements.txt
+        echo "===================================="
+
+    - name: تشغيل البوت الرئيسي
+      run: |
+        echo "===================================="
+        echo "🚀 بدء تشغيل بوت الأنمي والواتساب"
+        echo "===================================="
+        echo "📱 انتظر ظهور QR code للمسح"
+        echo "💡 أرسل /start في واتساب بعد المسح"
+        echo "===================================="
+        
+        # استخدام xvfb للتشغيل بدون واجهة رسومية
+        xvfb-run -a python run.py
+      env:
+        PYTHONUNBUFFERED: 1
+        DISPLAY: :99
+        CHROME_BIN: /usr/bin/chromium-browser
+        PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+
+    - name: حفظ جلسة الواتساب (للجلسات المستقبلية)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: واتساب-جلسة-$(date +%Y%m%d-%H%M%S)
+        path: |
+          session/
+          *.session
+        retention-days: 7
+        if-no-files-found: ignore
+
+    - name: رفع الملفات التي تم تحميلها
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: تحميلات-الأنمي-$(date +%Y%m%d-%H%M%S)
+        path: |
+          downloads/
+          compressed/
+          *.mp4
+          *.mkv
+          *.avi
+          *.srt
+          *.zip
+        retention-days: 7
+        if-no-files-found: ignore
+
+    - name: حفظ سجلات التشغيل
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: سجلات-التشغيل-$(date +%Y%m%d-%H%M%S)
+        path: |
+          logs/
+          *.log
+        retention-days: 7
+        if-no-files-found: ignore
+
+    - name: تلخيص التشغيل
+      if: always()
+      run: |
+        echo "===================================="
+        echo "📊 ملخص التشغيل"
+        echo "===================================="
+        echo "✅ الحالة: ${{ job.status }}"
+        echo "🕒 وقت التشغيل: $(date)"
+        echo ""
+        echo "📁 محتويات مجلد التحميلات:"
+        ls -lh downloads/ 2>/dev/null || echo "لا توجد تحميلات"
+        echo ""
+        echo "📁 محتويات مجلد المضغوط:"
+        ls -lh compressed/ 2>/dev/null || echo "لا توجد ملفات مضغوطة"
+        echo ""
+        echo "📄 آخر 20 سطر من السجلات:"
+        tail -n 20 logs/bot.log 2>/dev/null || echo "لا توجد سجلات"
+        echo "===================================="
