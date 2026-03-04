@@ -69,18 +69,85 @@ jobs:
           chmod +x start.sh
         fi
 
+    - name: استعادة جلسة Termux
+      run: |
+        echo "===================================="
+        echo "🔍 البحث عن ملفات الجلسة من Termux"
+        echo "===================================="
+        
+        # إنشاء المجلدات المطلوبة
+        mkdir -p session database auth_info
+        
+        # البحث عن ملف db.sqlite3 في المجلد الرئيسي
+        if [ -f "db.sqlite3" ]; then
+          echo "✅ تم العثور على ملف الجلسة: db.sqlite3"
+          echo "📏 حجم الملف: $(ls -lh db.sqlite3 | awk '{print $5}')"
+          
+          # نسخ الملف إلى جميع المواقع المحتملة
+          cp db.sqlite3 session/ 2>/dev/null || true
+          cp db.sqlite3 database/ 2>/dev/null || true
+          cp db.sqlite3 auth_info/ 2>/dev/null || true
+          
+          # إنشاء نسخ بأسماء مختلفة (لتوافق مع البوتات المختلفة)
+          cp db.sqlite3 session/whatsapp.db 2>/dev/null || true
+          cp db.sqlite3 session/session.db 2>/dev/null || true
+          cp db.sqlite3 database/session.sqlite 2>/dev/null || true
+          cp db.sqlite3 auth_info/creds.json 2>/dev/null || true
+          
+          echo "✅ تم نسخ الجلسة إلى المجلدات المناسبة"
+          echo "SESSION_RESTORED=true" >> $GITHUB_ENV
+        else
+          echo "⚠️ لا يوجد ملف db.sqlite3 في المجلد الرئيسي"
+          echo "📂 الملفات الموجودة:"
+          ls -la *.sqlite *.db *.session *.json 2>/dev/null || echo "لا توجد ملفات جلسة"
+        fi
+        
+        # عرض محتويات المجلدات
+        echo ""
+        echo "📁 محتويات مجلد session:"
+        ls -la session/ 2>/dev/null | head -10 || echo "فارغ"
+        echo ""
+        echo "📁 محتويات مجلد database:"
+        ls -la database/ 2>/dev/null | head -10 || echo "فارغ"
+        echo "===================================="
+
+    - name: تعديل البوت للإدخال التلقائي
+      run: |
+        echo "🔧 تعديل ملف whatsapp_bot.py للإدخال التلقائي..."
+        
+        # إضافة import time إذا لم يكن موجوداً
+        if ! grep -q "^import time" whatsapp_bot.py; then
+          sed -i '1iimport time' whatsapp_bot.py
+        fi
+        
+        # إزالة أي input() واستبدالها بـ time.sleep
+        sed -i 's/input("اضغط Enter بعد المسح...")/time.sleep(30)/g' whatsapp_bot.py
+        sed -i 's/input("اضغط Enter للدخول...")/time.sleep(30)/g' whatsapp_bot.py
+        sed -i 's/input("اضغط Enter للمتابعة...")/time.sleep(30)/g' whatsapp_bot.py
+        
+        # استبدال أي input آخر
+        sed -i 's/input(/time.sleep(30)  # /g' whatsapp_bot.py
+        
+        echo "✅ تم تعديل البوت للإدخال التلقائي"
+        echo "📌 سيتم انتظار 30 ثانية للمسح ثم المتابعة"
+
     - name: تشغيل البوت
       run: xvfb-run -a python run.py
       env:
         PYTHONUNBUFFERED: 1
         DISPLAY: :99
+        SESSION_PATH: ./session
 
-    - name: حفظ الجلسة
+    - name: حفظ الجلسة (للاستخدام المستقبلي)
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: جلسة-الواتساب-${{ github.run_id }}
-        path: session/
+        path: |
+          session/
+          database/
+          *.sqlite3
+          *.db
         retention-days: 7
         if-no-files-found: ignore
 
@@ -112,6 +179,32 @@ jobs:
         echo "===================================="
         echo "✅ الحالة: ${{ job.status }}"
         echo "🕒 وقت التشغيل: $(date)"
+        echo "🔢 رقم التشغيل: ${{ github.run_id }}"
+        echo ""
+        echo "📁 حالة الجلسة:"
+        if [ -f "db.sqlite3" ]; then
+          echo "✅ تم استخدام جلسة Termux"
+        else
+          echo "⚠️ تم استخدام جلسة جديدة"
+        fi
+        echo ""
         echo "📁 الملفات في downloads:"
-        ls -lh downloads/ 2>/dev/null | head -10 || echo "لا توجد ملفات"
+        if [ -d downloads ]; then
+          ls -lh downloads/ | head -20 || echo "المجلد فارغ"
+          echo "عدد الملفات: $(ls -1 downloads/ 2>/dev/null | wc -l)"
+        else
+          echo "لا توجد تحميلات"
+        fi
+        echo ""
+        echo "📁 الملفات في compressed:"
+        if [ -d compressed ]; then
+          ls -lh compressed/ | head -10 || echo "المجلد فارغ"
+        fi
+        echo ""
+        echo "📄 آخر 20 سطر من السجلات:"
+        if [ -f logs/bot.log ]; then
+          tail -n 20 logs/bot.log
+        else
+          echo "لا توجد سجلات"
+        fi
         echo "===================================="
