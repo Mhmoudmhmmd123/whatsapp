@@ -2,17 +2,17 @@ name: تشغيل بوت الأنمي والواتساب
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:  # تشغيل يدوي
+  workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'  # كل 6 ساعات
+    - cron: '0 */6 * * *'
 
 jobs:
   run-anime-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 ساعات كاملة
+    timeout-minutes: 360
 
     steps:
-    - name: استيراد الكود من المستودع
+    - name: استيراد الكود
       uses: actions/checkout@v4
 
     - name: إعداد بايثون
@@ -20,151 +20,70 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: تثبيت الحزم النظامية المطلوبة
+    - name: تثبيت الحزم النظامية
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           chromium-browser \
+          chromium-chromedriver \
           ffmpeg \
-          wget \
-          unzip \
           xvfb \
           nodejs \
           npm
 
     - name: تثبيت ChromeDriver
       run: |
-        sudo apt-get update
-        sudo apt-get install -y chromium-browser chromium-chromedriver
         sudo ln -sf /usr/lib/chromium-browser/chromedriver /usr/local/bin/chromedriver
         chromedriver --version
 
     - name: إعداد Puppeteer
-      - name: إعداد Puppeteer
-  run: |
-    echo "🔧 إنشاء ملف package.json جديد..."
-    
-    # إنشاء package.json صحيح
-    echo '{
-      "name": "whatsapp-anime-bot",
-      "version": "1.0.0",
-      "description": "WhatsApp Bot for Anime Downloader",
-      "main": "index.js",
-      "scripts": {
-        "test": "echo \"No tests specified\""
-      },
-      "keywords": ["whatsapp", "bot", "anime"],
-      "author": "",
-      "license": "MIT",
-      "dependencies": {
-        "puppeteer": "^21.6.0"
-      }
-    }' > package.json
-    
-    echo "✅ ملف package.json تم إنشاؤه بنجاح"
-    cat package.json
-    
-    echo "📦 جاري تثبيت Puppeteer..."
-    npm install puppeteer --no-package-lock
-    
-    # تحديد مسار Chrome
-    CHROME_PATH=$(which chromium-browser)
-    export PUPPETEER_EXECUTABLE_PATH=$CHROME_PATH
-    echo "✅ Puppeteer مثبت بنجاح"
-    echo "📌 مسار Chrome: $CHROME_PATH"
+      run: |
+        # إنشاء package.json جديد
+        echo '{"name":"bot","version":"1.0.0"}' > package.json
+        npm install puppeteer --no-package-lock
+        echo "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser" >> $GITHUB_ENV
 
     - name: ترقية pip
       run: python -m pip install --upgrade pip
 
-    - name: تثبيت مكتبات بايثون من requirements.txt
+    - name: تثبيت مكتبات بايثون
       run: |
-        pip install -r requirements.txt
+        pip install selenium==4.15.2
+        pip install webdriver-manager==4.0.3
+        pip install requests==2.31.0
+        pip install beautifulsoup4==4.12.2
+        pip install lxml==4.9.3
+        pip install ffmpeg-python==0.2.0
+        pip install Pillow==10.1.0
+        pip install python-dotenv==1.0.0
+        pip install cloudscraper==1.2.71
+        pip install tqdm==4.66.1
+        pip install pyppeteer==1.0.2
+        pip install aiohttp==3.9.1
+        pip install fake-useragent==1.4.0
+        pip install urllib3==2.1.0
 
-    - name: تأكيد التثبيت
+    - name: إعداد المجلدات
       run: |
-        echo "✅ المكتبات المثبتة:"
-        pip list | grep -E "selenium|requests|beautifulsoup|ffmpeg|Pillow|cloudscraper|pyppeteer|aiohttp" || echo "بعض المكتبات لم تظهر"
+        mkdir -p downloads compressed logs database session temp
+        chmod +x start.sh 2>/dev/null || true
 
-    - name: إعداد هيكل المجلدات
-      run: |
-        if [ -f start.sh ]; then
-          chmod +x start.sh
-        fi
-        mkdir -p downloads
-        mkdir -p logs
-        mkdir -p database
-        mkdir -p compressed
-        mkdir -p temp
-        mkdir -p session
-        echo "📁 المجلدات التي تم إنشاؤها:"
-        ls -la
-
-    - name: إعداد متغيرات البيئة
-      run: |
-        if [ -f .env ]; then
-          echo "✅ ملف .env موجود"
-          echo "محتويات .env (بدون أسرار):"
-          grep -v "=" .env | cat || echo "لا توجد متغيرات"
-        else
-          echo "⚠️ لا يوجد ملف .env، سيتم إنشاء ملف افتراضي"
-          echo "# ملف البيئة الافتراضي" > .env
-          echo "DEBUG=true" >> .env
-        fi
-
-    - name: اختبار التثبيت
-      run: |
-        echo "🧪 اختبار التثبيت..."
-        if [ -f test_installation.py ]; then
-          python test_installation.py || echo "⚠️ اختبار التثبيت يحتاج تعديل"
-        else
-          echo "⚠️ لا يوجد ملف test_installation.py"
-        fi
-
-    - name: عرض معلومات المشروع
-      run: |
-        echo "===================================="
-        echo "📋 معلومات المشروع:"
-        echo "===================================="
-        echo "📁 الملفات الرئيسية:"
-        ls -la *.py 2>/dev/null || echo "لا توجد ملفات بايثون"
-        echo ""
-        echo "📚 ملفات التوثيق:"
-        ls -la *.md *.txt 2>/dev/null || echo "لا توجد ملفات توثيق"
-        echo ""
-        echo "📦 محتويات requirements.txt:"
-        cat requirements.txt 2>/dev/null || echo "لا يوجد requirements.txt"
-        echo "===================================="
-
-    - name: تشغيل البوت الرئيسي
-      run: |
-        echo "===================================="
-        echo "🚀 بدء تشغيل بوت الأنمي والواتساب"
-        echo "===================================="
-        echo "📱 انتظر ظهور QR code للمسح"
-        echo "💡 أرسل /start في واتساب بعد المسح"
-        echo "===================================="
-        
-        # استخدام xvfb للتشغيل بدون واجهة رسومية
-        xvfb-run -a python run.py
+    - name: تشغيل البوت
+      run: xvfb-run -a python run.py
       env:
         PYTHONUNBUFFERED: 1
         DISPLAY: :99
-        CHROME_BIN: /usr/bin/chromium-browser
-        PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
 
-    - name: حفظ جلسة الواتساب (للجلسات المستقبلية)
+    - name: حفظ الجلسة
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: واتساب-جلسة-${{ github.run_id }}
-        path: |
-          session/
-          *.session
-          *.data
+        name: جلسة-الواتساب-${{ github.run_id }}
+        path: session/
         retention-days: 7
         if-no-files-found: ignore
 
-    - name: رفع الملفات التي تم تحميلها
+    - name: حفظ التحميلات
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -172,56 +91,14 @@ jobs:
         path: |
           downloads/
           compressed/
-          *.mp4
-          *.mkv
-          *.avi
-          *.srt
-          *.zip
-          *.rar
         retention-days: 7
         if-no-files-found: ignore
 
-    - name: حفظ سجلات التشغيل
+    - name: حفظ السجلات
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: سجلات-التشغيل-${{ github.run_id }}
-        path: |
-          logs/
-          *.log
-          *.txt
+        path: logs/
         retention-days: 7
         if-no-files-found: ignore
-
-    - name: تلخيص التشغيل
-      if: always()
-      run: |
-        echo "===================================="
-        echo "📊 ملخص التشغيل"
-        echo "===================================="
-        echo "✅ الحالة: ${{ job.status }}"
-        echo "🕒 وقت التشغيل: $(date)"
-        echo "🔢 رقم التشغيل: ${{ github.run_id }}"
-        echo ""
-        echo "📁 محتويات مجلد التحميلات:"
-        if [ -d downloads ]; then
-          ls -lh downloads/ | head -20 || echo "المجلد فارغ"
-          echo "عدد الملفات: $(ls -1 downloads/ 2>/dev/null | wc -l)"
-        else
-          echo "لا توجد تحميلات"
-        fi
-        echo ""
-        echo "📁 محتويات مجلد المضغوط:"
-        if [ -d compressed ]; then
-          ls -lh compressed/ | head -10 || echo "المجلد فارغ"
-        else
-          echo "لا توجد ملفات مضغوطة"
-        fi
-        echo ""
-        echo "📄 آخر 20 سطر من السجلات:"
-        if [ -f logs/bot.log ]; then
-          tail -n 20 logs/bot.log
-        else
-          echo "لا توجد سجلات"
-        fi
-        echo "===================================="
