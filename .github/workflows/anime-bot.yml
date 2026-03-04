@@ -32,24 +32,12 @@ jobs:
           nodejs \
           npm
 
-    - - name: تثبيت ChromeDriver
-  run: |
-    # استخدام webdriver-manager للتثبيت التلقائي
-    pip install webdriver-manager==4.0.3
-    
-    python -c "
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium import webdriver
-import os
-
-# تثبيت ChromeDriver
-driver_path = ChromeDriverManager().install()
-print(f'✅ ChromeDriver installed at: {driver_path}')
-
-# إنشاء رابط رمزي
-os.system(f'sudo ln -sf {driver_path} /usr/local/bin/chromedriver')
-os.system('chromedriver --version')
-"
+    - name: تثبيت ChromeDriver
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y chromium-browser chromium-chromedriver
+        sudo ln -sf /usr/lib/chromium-browser/chromedriver /usr/local/bin/chromedriver
+        chromedriver --version
 
     - name: إعداد Puppeteer
       run: |
