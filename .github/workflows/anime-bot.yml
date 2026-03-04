@@ -41,9 +41,23 @@ jobs:
 
     - name: إعداد Puppeteer
       run: |
-        npm init -y
-        npm install puppeteer
-        export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser)
+        echo "📦 استخدام package.json الموجود"
+        if [ -f package.json ]; then
+          echo "✅ ملف package.json موجود"
+          cat package.json | head -10
+        else
+          echo "❌ ملف package.json غير موجود، سيتم إنشاؤه"
+          npm init -y
+        fi
+        
+        # تثبيت Puppeteer
+        echo "جاري تثبيت Puppeteer..."
+        npm install puppeteer --no-package-lock
+        
+        # تحديد مسار Chrome
+        CHROME_PATH=$(which chromium-browser)
+        export PUPPETEER_EXECUTABLE_PATH=$CHROME_PATH
+        echo "✅ Puppeteer مثبت، مسار Chrome: $CHROME_PATH"
 
     - name: ترقية pip
       run: python -m pip install --upgrade pip
@@ -55,17 +69,19 @@ jobs:
     - name: تأكيد التثبيت
       run: |
         echo "✅ المكتبات المثبتة:"
-        pip list | grep -E "selenium|requests|beautifulsoup|ffmpeg|Pillow|cloudscraper|pyppeteer|aiohttp"
+        pip list | grep -E "selenium|requests|beautifulsoup|ffmpeg|Pillow|cloudscraper|pyppeteer|aiohttp" || echo "بعض المكتبات لم تظهر"
 
     - name: إعداد هيكل المجلدات
       run: |
-        chmod +x start.sh
+        if [ -f start.sh ]; then
+          chmod +x start.sh
+        fi
         mkdir -p downloads
         mkdir -p logs
         mkdir -p database
         mkdir -p compressed
         mkdir -p temp
-        mkdir -p session  # لجلسة الواتساب
+        mkdir -p session
         echo "📁 المجلدات التي تم إنشاؤها:"
         ls -la
 
@@ -73,16 +89,22 @@ jobs:
       run: |
         if [ -f .env ]; then
           echo "✅ ملف .env موجود"
-          cat .env | grep -v "PASSWORD\|TOKEN\|KEY" || true
+          echo "محتويات .env (بدون أسرار):"
+          grep -v "=" .env | cat || echo "لا توجد متغيرات"
         else
           echo "⚠️ لا يوجد ملف .env، سيتم إنشاء ملف افتراضي"
-          touch .env
+          echo "# ملف البيئة الافتراضي" > .env
+          echo "DEBUG=true" >> .env
         fi
 
     - name: اختبار التثبيت
       run: |
         echo "🧪 اختبار التثبيت..."
-        python test_installation.py || echo "⚠️ اختبار التثبيت يحتاج تعديل"
+        if [ -f test_installation.py ]; then
+          python test_installation.py || echo "⚠️ اختبار التثبيت يحتاج تعديل"
+        else
+          echo "⚠️ لا يوجد ملف test_installation.py"
+        fi
 
     - name: عرض معلومات المشروع
       run: |
@@ -90,13 +112,13 @@ jobs:
         echo "📋 معلومات المشروع:"
         echo "===================================="
         echo "📁 الملفات الرئيسية:"
-        ls -la *.py
+        ls -la *.py 2>/dev/null || echo "لا توجد ملفات بايثون"
         echo ""
         echo "📚 ملفات التوثيق:"
-        ls -la *.md *.txt
+        ls -la *.md *.txt 2>/dev/null || echo "لا توجد ملفات توثيق"
         echo ""
         echo "📦 محتويات requirements.txt:"
-        cat requirements.txt
+        cat requirements.txt 2>/dev/null || echo "لا يوجد requirements.txt"
         echo "===================================="
 
     - name: تشغيل البوت الرئيسي
@@ -120,10 +142,11 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: واتساب-جلسة-$(date +%Y%m%d-%H%M%S)
+        name: واتساب-جلسة-${{ github.run_id }}
         path: |
           session/
           *.session
+          *.data
         retention-days: 7
         if-no-files-found: ignore
 
@@ -131,7 +154,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: تحميلات-الأنمي-$(date +%Y%m%d-%H%M%S)
+        name: تحميلات-الأنمي-${{ github.run_id }}
         path: |
           downloads/
           compressed/
@@ -140,6 +163,7 @@ jobs:
           *.avi
           *.srt
           *.zip
+          *.rar
         retention-days: 7
         if-no-files-found: ignore
 
@@ -147,10 +171,11 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: سجلات-التشغيل-$(date +%Y%m%d-%H%M%S)
+        name: سجلات-التشغيل-${{ github.run_id }}
         path: |
           logs/
           *.log
+          *.txt
         retention-days: 7
         if-no-files-found: ignore
 
@@ -162,13 +187,27 @@ jobs:
         echo "===================================="
         echo "✅ الحالة: ${{ job.status }}"
         echo "🕒 وقت التشغيل: $(date)"
+        echo "🔢 رقم التشغيل: ${{ github.run_id }}"
         echo ""
         echo "📁 محتويات مجلد التحميلات:"
-        ls -lh downloads/ 2>/dev/null || echo "لا توجد تحميلات"
+        if [ -d downloads ]; then
+          ls -lh downloads/ | head -20 || echo "المجلد فارغ"
+          echo "عدد الملفات: $(ls -1 downloads/ 2>/dev/null | wc -l)"
+        else
+          echo "لا توجد تحميلات"
+        fi
         echo ""
         echo "📁 محتويات مجلد المضغوط:"
-        ls -lh compressed/ 2>/dev/null || echo "لا توجد ملفات مضغوطة"
+        if [ -d compressed ]; then
+          ls -lh compressed/ | head -10 || echo "المجلد فارغ"
+        else
+          echo "لا توجد ملفات مضغوطة"
+        fi
         echo ""
         echo "📄 آخر 20 سطر من السجلات:"
-        tail -n 20 logs/bot.log 2>/dev/null || echo "لا توجد سجلات"
+        if [ -f logs/bot.log ]; then
+          tail -n 20 logs/bot.log
+        else
+          echo "لا توجد سجلات"
+        fi
         echo "===================================="
